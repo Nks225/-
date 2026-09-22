@@ -1,0 +1,209 @@
+import cv2
+import numpy as np
+import math
+
+# Видео
+video_path = "video.mp4"
+
+cap = cv2.VideoCapture(video_path)
+
+if not cap.isOpened():
+    print("Ошибка: видео не удалось открыть")
+    exit()
+
+# FPS исходного видео
+fps = cap.get(cv2.CAP_PROP_FPS)
+
+if fps <= 0:
+    fps = 30
+
+# Задержка для нормальной скорости воспроизведения
+delay = int(1000 / fps)
+
+# Новое разрешение
+width = 640
+height = 360
+
+frame_number = 0
+
+while True:
+
+    ret, frame = cap.read()
+
+    if not ret:
+        break
+
+    # ==========================================
+    # 1. ИЗМЕНЕНИЕ РАЗРЕШЕНИЯ
+    # ==========================================
+
+    frame = cv2.resize(frame, (width, height))
+
+    # Текущее время видео
+    t = frame_number / fps
+
+
+    # ==========================================
+    # 2. ДИНАМИЧЕСКИЙ ПОВОРОТ
+    # ==========================================
+
+    # Угол автоматически меняется
+    # примерно от -25 до +25 градусов
+    angle = 25 * math.sin(
+        2 * math.pi * t / 4
+    )
+
+
+    # ==========================================
+    # 3. СЖАТИЕ / РАСТЯЖЕНИЕ
+    # ==========================================
+
+    # По горизонтали
+    scale_x = 1 + 0.30 * math.sin(
+        2 * math.pi * t / 3
+    )
+
+    # По вертикали
+    scale_y = 1 + 0.30 * math.cos(
+        2 * math.pi * t / 3
+    )
+
+
+    # ==========================================
+    # 4. СОЗДАНИЕ МАТРИЦЫ ПРЕОБРАЗОВАНИЯ
+    # ==========================================
+
+    center_x = width / 2
+    center_y = height / 2
+
+    radians = math.radians(angle)
+
+    cos_a = math.cos(radians)
+    sin_a = math.sin(radians)
+
+    # Поворот +
+    # отдельное масштабирование X и Y
+    M = np.array([
+        [
+            scale_x * cos_a,
+            -scale_y * sin_a,
+            0
+        ],
+        [
+            scale_x * sin_a,
+            scale_y * cos_a,
+            0
+        ]
+    ], dtype=np.float32)
+
+    # Центрируем преобразование
+    M[0, 2] = (
+        center_x
+        - M[0, 0] * center_x
+        - M[0, 1] * center_y
+    )
+
+    M[1, 2] = (
+        center_y
+        - M[1, 0] * center_x
+        - M[1, 1] * center_y
+    )
+
+    frame = cv2.warpAffine(
+        frame,
+        M,
+        (width, height)
+    )
+
+
+    # ==========================================
+    # 5. ДИНАМИЧЕСКАЯ ГАММА
+    # ==========================================
+
+    # Значение автоматически меняется
+    # примерно от 0.5 до 1.5
+    gamma = 1 + 0.5 * math.sin(
+        2 * math.pi * t / 5
+    )
+
+    table = np.array([
+        ((i / 255.0) ** (1.0 / gamma)) * 255
+        for i in np.arange(256)
+    ]).astype("uint8")
+
+    frame = cv2.LUT(frame, table)
+
+
+    # ==========================================
+    # 6. ВЫВОД ПАРАМЕТРОВ
+    # ==========================================
+
+    cv2.putText(
+        frame,
+        f"Time: {t:.1f} sec",
+        (15, 30),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (255, 255, 255),
+        2
+    )
+
+    cv2.putText(
+        frame,
+        f"Rotation: {angle:.1f} deg",
+        (15, 55),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (255, 255, 255),
+        2
+    )
+
+    cv2.putText(
+        frame,
+        f"Scale X: {scale_x:.2f}",
+        (15, 80),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (255, 255, 255),
+        2
+    )
+
+    cv2.putText(
+        frame,
+        f"Scale Y: {scale_y:.2f}",
+        (15, 105),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (255, 255, 255),
+        2
+    )
+
+    cv2.putText(
+        frame,
+        f"Gamma: {gamma:.2f}",
+        (15, 130),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (255, 255, 255),
+        2
+    )
+
+
+    # ==========================================
+    # 7. ПОКАЗ ВИДЕО
+    # ==========================================
+
+    cv2.imshow("KT3 - OpenCV", frame)
+
+    # Нажать Q или Esc для выхода
+    key = cv2.waitKey(delay) & 0xFF
+
+    if key == ord("q") or key == 27:
+        break
+
+    frame_number += 1
+
+
+# Освобождаем ресурсы
+cap.release()
+cv2.destroyAllWindows()
